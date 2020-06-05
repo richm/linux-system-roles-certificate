@@ -1,11 +1,22 @@
 ---
+- name: Set __is_beaker_env
+  set_fact:
+    __is_beaker_env: "{{ lookup('env', 'BEAKERLIB') != '' }}"
+
+- name: Install ansible-freeipa
+  package:
+    name: ansible-freeipa
+  delegate_to: 127.0.0.1
+  when: __is_beaker_env
+
 - name: Clone ansible-freeipa repo
   git:
     repo: https://github.com/freeipa/ansible-freeipa
-    version: v0.1.10
+    version: v0.1.12
     dest: /tmp/freeipa-repo
   delegate_to: 127.0.0.1
   become: false
+  when: not __is_beaker_env
 
 - name: Create role symlinks
   file:
@@ -17,10 +28,17 @@
   loop:
     - ipaserver
     - ipaclient
+  when: not __is_beaker_env
 
 - name: Set hostname
   hostname:
     name: ipaserver.test.local
+
+- name: Ensure nss package is up-to-date
+  package:
+    name: nss
+    state: latest
+  when: ansible_facts.os_family == "RedHat"
 
 - include_role:
     name: ipaserver
@@ -31,3 +49,4 @@
     ipadm_password: SomeDMpassword
     ipaserver_domain: test.local
     ipaserver_realm: TEST.LOCAL
+    ipaserver_no_dnssec_validation: yes
