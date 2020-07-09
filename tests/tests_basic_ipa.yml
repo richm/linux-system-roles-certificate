@@ -2,8 +2,41 @@
 - name: Install IPA server
   hosts: all
   become: true
+  vars:
+    local_log_dir: "{{ lookup('env', 'TEST_ARTIFACTS') | d('/tmp', true) }}"
   tasks:
-    - import_tasks: tasks/setup_ipa.yml
+    - name: run ipa Install
+      block:
+        - import_tasks: tasks/setup_ipa.yml
+        - fail:
+            msg: failed
+      rescue:
+        - name: FAILURE - check entropy
+          command: cat /proc/sys/kernel/random/entropy_avail
+        - name: FAILURE - get logs for debugging
+          archive:
+            dest: /tmp/ipalogs.tgz
+            path:
+              - /var/log/messages
+              - /var/log/ipaserver-install.log
+              - /var/log/ipaclient-install.log
+              - /var/log/pki
+        - name: FAILURE - grab archive
+          fetch:
+            src: /tmp/ipalogs.tgz
+            dest: "{{ local_log_dir }}/ipalogs.tgz"
+            flat: true
+        - name: FAILURE - unpack archive
+          unarchive:
+            src: "{{ local_log_dir }}/ipalogs.tgz"
+            dest: "{{ local_log_dir }}"
+            list_files: true
+            remote_src: true
+          delegate_to: localhost
+
+        - name: FAILURE - ipa setup failed
+          fail:
+            msg: FAILURE - ipa setup failed
 
 - name: Issue IPA signed certificate
   hosts: all
